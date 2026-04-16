@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Planner Semanal Pro + Horários</title>
+
+  <style>
+    :root {
+      --alta: #dc2626; --alta-bg: #fef2f2;
+      --media: #d97706; --media-bg: #fffbeb;
+      --baixa: #16a34a; --baixa-bg: #f0fdf4;
+      --primary: #2563eb; --primary-dark: #1d4ed8;
+      --surface: #ffffff; --bg: #f1f5f9; --text: #0f172a;
+      --muted: #64748b; --border: #e2e8f0;
+      --r-md: 12px; --r-sm: 8px;
+      --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: 'Inter', system-ui, sans-serif; 
+      background: var(--bg); color: var(--text); 
+      line-height: 1.5; min-height: 100vh; padding-bottom: 2rem;
+    }
+
+    /* Header & Progress */
+    .app-header { background: #1e293b; color: white; padding: 3rem 1rem 4rem; text-align: center; }
+    .progress-container { 
+      max-width: 600px; margin: 1rem auto 0; background: rgba(255,255,255,0.1); 
+      height: 8px; border-radius: 10px; overflow: hidden; 
+    }
+    #progressBar { width: 0%; height: 100%; background: #22c55e; transition: width 0.4s ease; }
+
+    .app-main { max-width: 900px; margin: -2.5rem auto 0; padding: 0 1rem; display: grid; gap: 1.5rem; }
+
+    /* Forms and Filters */
+    .card { background: var(--surface); border-radius: var(--r-md); padding: 1.5rem; border: 1px solid var(--border); box-shadow: var(--shadow); }
+    
+    .form-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 0.8fr auto; gap: 0.8rem; align-items: end; }
+    @media (max-width: 768px) { .form-grid { grid-template-columns: 1fr; } }
+
+    .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
+    label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--muted); }
+    
+    input, select { 
+      padding: 0.6rem; border: 1px solid var(--border); border-radius: var(--r-sm); font-size: 0.9rem; outline-color: var(--primary);
+      width: 100%;
+    }
+
+    .btn-add { background: var(--primary); color: white; border: none; padding: 0.7rem 1.2rem; border-radius: var(--r-sm); cursor: pointer; font-weight: 600; height: 38px; }
+    .btn-add:hover { background: var(--primary-dark); }
+
+    /* Day Filters */
+    .filter-bar { display: flex; gap: 0.5rem; overflow-x: auto; padding: 0.5rem 0; margin: 0.5rem 0; scrollbar-width: none; }
+    .filter-btn { 
+      padding: 0.5rem 1.2rem; border: 1px solid var(--border); background: white; 
+      border-radius: 20px; font-size: 0.85rem; cursor: pointer; white-space: nowrap; transition: 0.2s;
+    }
+    .filter-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+    /* Task Items */
+    .task-list { display: grid; gap: 0.8rem; }
+    .task-item { 
+      display: flex; align-items: center; gap: 1rem; padding: 1rem; 
+      background: white; border-radius: var(--r-md); border: 1px solid var(--border);
+      animation: slideIn 0.3s ease;
+      border-left: 6px solid transparent;
+    }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    .priority-alta { border-left-color: var(--alta); }
+    .priority-media { border-left-color: var(--media); }
+    .priority-baixa { border-left-color: var(--baixa); }
+
+    .task-info { flex: 1; }
+    .task-title { font-weight: 600; display: block; font-size: 1rem; }
+    .task-meta { font-size: 0.75rem; color: var(--muted); display: flex; align-items: center; gap: 0.6rem; margin-top: 4px; }
+    
+    .time-badge { background: #fee2e2; color: #991b1b; padding: 2px 6px; border-radius: 4px; font-weight: 700; }
+    .day-badge { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; }
+
+    .checkbox-custom { width: 1.3rem; height: 1.3rem; cursor: pointer; accent-color: var(--primary); }
+    .completed { opacity: 0.5; background: #f8fafc; }
+    .completed .task-title { text-decoration: line-through; }
+
+    .btn-delete { background: none; border: none; color: #cbd5e1; cursor: pointer; font-size: 1.4rem; padding: 0 0.5rem; transition: 0.2s; }
+    .btn-delete:hover { color: #ef4444; }
+
+    .empty-state { text-align: center; padding: 3rem; color: var(--muted); background: white; border-radius: var(--r-md); border: 2px dashed var(--border); }
+    .footer-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; }
+    .btn-clear { background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 0.8rem; font-weight: 600; transition: 0.2s; }
+    .btn-clear:hover { color: var(--alta); }
+  </style>
+</head>
+<body>
+
+<header class="app-header">
+  <h1>Planner Semanal</h1>
+  <p id="statsText">Carregando tarefas...</p>
+  <div class="progress-container">
+    <div id="progressBar"></div>
+  </div>
+</header>
+
+<main class="app-main">
+  <section class="card">
+    <form id="taskForm" class="form-grid">
+      <div class="form-group">
+        <label>O que fazer?</label>
+        <input type="text" id="taskInput" placeholder="Ex: Reunião de projeto" required>
+      </div>
+      <div class="form-group">
+        <label>Dia</label>
+        <select id="dayInput">
+          <option value="Segunda">Segunda</option>
+          <option value="Terça">Terça</option>
+          <option value="Quarta">Quarta</option>
+          <option value="Quinta">Quinta</option>
+          <option value="Sexta">Sexta</option>
+          <option value="Sábado">Sábado</option>
+          <option value="Domingo">Domingo</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Prioridade</label>
+        <select id="priorityInput">
+          <option value="baixa">Baixa</option>
+          <option value="media" selected>Média</option>
+          <option value="alta">Alta</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Hora</label>
+        <input type="time" id="timeInput" required>
+      </div>
+      <button type="submit" class="btn-add">Adicionar</button>
+    </form>
+  </section>
+
+  <nav class="filter-bar" id="filterBar">
+    <button class="filter-btn active" data-filter="Todos">Todos os Dias</button>
+    <button class="filter-btn" data-filter="Segunda">Seg</button>
+    <button class="filter-btn" data-filter="Terça">Ter</button>
+    <button class="filter-btn" data-filter="Quarta">Qua</button>
+    <button class="filter-btn" data-filter="Quinta">Qui</button>
+    <button class="filter-btn" data-filter="Sexta">Sex</button>
+    <button class="filter-btn" data-filter="Sábado">Sáb</button>
+    <button class="filter-btn" data-filter="Domingo">Dom</button>
+  </nav>
+
+  <section>
+    <div id="taskList" class="task-list"></div>
+    
+    <div class="footer-actions">
+      <span id="itemsLeft" style="font-size: 0.85rem; font-weight: 500; color: var(--muted);"></span>
+      <button class="btn-clear" onclick="clearAll()">Limpar Todas as Tarefas</button>
+    </div>
+  </section>
+</main>
+
+<script>
+  let tasks = JSON.parse(localStorage.getItem('myWeeklyPlanner')) || [];
+  let currentFilter = 'Todos';
+
+  const taskForm = document.getElementById('taskForm');
+  const taskList = document.getElementById('taskList');
+  const filterBtns = document.querySelectorAll('.filter-btn');
+
+  // Inicializar
+  renderTasks();
+
+  taskForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const newTask = {
+      id: Date.now(),
+      text: document.getElementById('taskInput').value,
+      day: document.getElementById('dayInput').value,
+      priority: document.getElementById('priorityInput').value,
+      time: document.getElementById('timeInput').value,
+      completed: false
+    };
+    
+    tasks.push(newTask);
+    saveAndRender();
+    taskForm.reset();
+    document.getElementById('taskInput').focus();
+  });
+
+  // Gerenciar Filtros
+  filterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelector('.filter-btn.active').classList.remove('active');
+      btn.classList.add('active');
+      currentFilter = btn.getAttribute('data-filter');
+      renderTasks();
+    });
+  });
+
+  function renderTasks() {
+    taskList.innerHTML = '';
+    
+    // 1. Filtrar
+    let filteredTasks = tasks.filter(t => 
+      currentFilter === 'Todos' ? true : t.day === currentFilter
+    );
+
+    // 2. Ordenar por Hora (Cronológica)
+    filteredTasks.sort((a, b) => a.time.localeCompare(b.time));
+
+    if (filteredTasks.length === 0) {
+      taskList.innerHTML = `<div class="empty-state">Nenhuma tarefa agendada para ${currentFilter === 'Todos' ? 'a semana' : currentFilter}.</div>`;
+    }
+
+    // 3. Gerar HTML
+    filteredTasks.forEach(task => {
+      const item = document.createElement('div');
+      item.className = `task-item priority-${task.priority} ${task.completed ? 'completed' : ''}`;
+      item.innerHTML = `
+        <input type="checkbox" class="checkbox-custom" ${task.completed ? 'checked' : ''} 
+          onclick="toggleTask(${task.id})">
+        <div class="task-info">
+          <span class="task-title">${task.text}</span>
+          <div class="task-meta">
+            <span class="time-badge">🕒 ${task.time}</span>
+            <span class="day-badge">${task.day}</span>
+            <span style="color: var(--${task.priority}); font-weight: bold; text-transform: uppercase; font-size: 0.65rem;">
+              ${task.priority}
+            </span>
+          </div>
+        </div>
+        <button class="btn-delete" onclick="deleteTask(${task.id})" title="Excluir">&times;</button>
+      `;
+      taskList.appendChild(item);
+    });
+
+    updateStats();
+  }
+
+  function toggleTask(id) {
+    tasks = tasks.map(t => t.id === id ? {...t, completed: !t.completed} : t);
+    saveAndRender();
+  }
+
+  function deleteTask(id) {
+    if(confirm('Excluir esta tarefa?')) {
+      tasks = tasks.filter(t => t.id !== id);
+      saveAndRender();
+    }
+  }
+
+  function clearAll() {
+    if(confirm('ATENÇÃO: Isso apagará TODAS as tarefas da semana. Continuar?')) {
+      tasks = [];
+      saveAndRender();
+    }
+  }
+
+  function updateStats() {
+    const total = tasks.length;
+    const completed = tasks.filter(t => t.completed).length;
+    const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
+    
+    document.getElementById('progressBar').style.width = percent + '%';
+    document.getElementById('statsText').innerText = `${completed} de ${total} tarefas concluídas (${percent}%)`;
+    
+    const pending = tasks.filter(t => !t.completed).length;
+    document.getElementById('itemsLeft').innerText = pending === 1 ? '1 tarefa pendente' : `${pending} tarefas pendentes`;
